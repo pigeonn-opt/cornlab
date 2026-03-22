@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CornLab: The Hypothesis Trial</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    #audio-toggle {
+      background: none; border: 1px solid #2a4a2a; color: #81c784;
+      border-radius: 6px; padding: .25rem .55rem; font-size: 1.1rem;
+      cursor: pointer; transition: background .15s;
+      line-height: 1;
+    }
+    #audio-toggle:hover  { background: #1a2e1a; }
+    #audio-toggle.muted  { opacity: .45; }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SCREEN 1 — LOGIN
+═══════════════════════════════════════════════════════════════════ -->
+<div id="screen-login" class="screen">
+  <h1>🌽 CornLab</h1>
+  <p class="subtitle">The Hypothesis Trial</p>
+  <input id="username-input" type="text" placeholder="Enter your name…" maxlength="32" autocomplete="off">
+  <select id="group-select" style="background:#1a2e1a;border:1px solid #2a4a2a;color:#e8f5e9;
+    padding:.7rem 1rem;border-radius:8px;font-size:1rem;width:320px;margin-bottom:1rem;outline:none">
+    <option value="A">Group A — Interactive Game</option>
+    <option value="B">Group B — Static Learning</option>
+  </select>
+  <button class="btn gold" onclick="startLogin()">▶ Start Investigation</button>
+  <p style="color:#2a4a2a;font-size:.8rem;margin-top:2rem">
+    A serious game for learning hypothesis testing · Gardner's Multiple Intelligences
+  </p>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SCREEN 2 — CUTSCENE
+═══════════════════════════════════════════════════════════════════ -->
+<div id="screen-cutscene" class="screen">
+  <canvas id="cutscene-canvas"></canvas>
+  <div id="cutscene-overlay">
+    <div id="cutscene-subtitle"></div>
+  </div>
+  <span id="cutscene-skip">[ SPACE / click to skip ]</span>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SCREEN 3 — PRE/POST TEST
+═══════════════════════════════════════════════════════════════════ -->
+<div id="screen-test" class="screen" style="overflow-y:auto;padding:2rem 0">
+  <div id="test-box" class="test-box"></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SCREEN 4 — MAIN GAME
+═══════════════════════════════════════════════════════════════════ -->
+<div id="screen-game" class="screen" style="flex-direction:column">
+
+  <!-- HUD -->
+  <div id="hud">
+    <span class="chapter-label" id="chapter-label">Tutorial</span>
+    <div id="xp-bar-wrap"><div id="xp-bar" style="width:0%"></div></div>
+    <span class="xp-text" id="xp-text">0 XP</span>
+    <span class="level-badge" id="level-badge">Lv.1 Beginner Analyst</span>
+    <button class="btn" style="padding:.3rem .8rem;font-size:.8rem" onclick="Game.showHint()">💡 Hint</button>
+    <button id="audio-toggle" onclick="Audio.toggle()" title="Toggle audio">🔊</button>
+  </div>
+
+  <!-- Tutorial progress bar -->
+  <div id="progress-wrap" style="display:none;padding:0 1rem;background:#0c160c;padding-bottom:4px">
+    <div id="progress-bar" style="width:0%"></div>
+  </div>
+
+  <!-- Game body -->
+  <div id="game-body">
+
+    <!-- LEFT — Field + controls -->
+    <div id="panel-left">
+
+      <!-- Field grid -->
+      <div class="panel-card">
+        <h3>🌽 Corn Field (12×12 = 144 Plots)</h3>
+        <div id="field-grid"></div>
+        <p style="font-size:.75rem;color:#2a4a2a;margin-top:.4rem">
+          🟡 Gold border = sampled plot &nbsp;|&nbsp; Hover for details after reveal
+        </p>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="panel-card">
+        <h3>🔬 Actions</h3>
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap">
+          <button id="btn-sample" class="btn" onclick="Game.doSample()">🌽 Sample (n=35)</button>
+          <button id="btn-reveal" class="btn blue" onclick="Game.doReveal()" disabled>🗺️ Reveal Field</button>
+        </div>
+      </div>
+
+      <!-- Hypothesis panel -->
+      <div class="panel-card" id="hyp-panel">
+        <h3>📐 Hypotheses</h3>
+        <div id="hyp-body">
+          <p style="color:#555;font-size:.85rem">Loading…</p>
+        </div>
+      </div>
+
+      <!-- Decision -->
+      <div class="panel-card">
+        <h3>⚖️ Your Decision</h3>
+        <div id="decision-area">
+          <button id="btn-accept" class="btn" onclick="Game.doDecide(true)"  disabled>✅ Accept H₀</button>
+          <button id="btn-reject" class="btn red" onclick="Game.doDecide(false)" disabled>❌ Reject H₀</button>
+        </div>
+        <p style="font-size:.78rem;color:#2a4a2a;margin-top:.5rem">
+          Accept H₀ = yield unchanged &nbsp;|&nbsp; Reject H₀ = yield changed
+        </p>
+      </div>
+
+    </div><!-- /panel-left -->
+
+    <!-- RIGHT — Stats + histogram + journal -->
+    <div id="panel-right">
+
+      <!-- Statistics -->
+      <div class="panel-card">
+        <h3>📊 Sample Statistics</h3>
+        <div id="stats-body">
+          <p style="color:#555;font-size:.85rem">Click "Sample" to generate statistics.</p>
+        </div>
+      </div>
+
+      <!-- Histogram -->
+      <div class="panel-card" id="hist-card">
+        <h3>📈 Yield Distribution
+          <span style="font-size:.75rem;color:#2a4a2a;font-weight:400">
+            — green line = x̄ &nbsp;|&nbsp; yellow dashed = μ₀ &nbsp;|&nbsp; shaded = 95% CI
+          </span>
+        </h3>
+        <div style="height:180px;position:relative">
+          <canvas id="hist-canvas"></canvas>
+        </div>
+      </div>
+
+      <!-- Interpretation guide -->
+      <div class="panel-card">
+        <h3>🧭 How to Interpret</h3>
+        <div style="font-size:.85rem;color:#81c784;line-height:1.8">
+          <div>📌 <strong>p &lt; 0.05</strong> → Strong evidence against H₀ → Consider rejecting</div>
+          <div>📌 <strong>p ≥ 0.05</strong> → Weak evidence → Keep H₀ (for now)</div>
+          <div>📌 If <strong>μ₀ is outside the CI</strong> → H₀ is unlikely</div>
+          <div>📌 <strong>Type I error</strong> = false alarm (reject true H₀)</div>
+          <div>📌 <strong>Type II error</strong> = missed effect (accept false H₀)</div>
+        </div>
+      </div>
+
+      <!-- Reflection journal -->
+      <div class="panel-card" id="journal-area">
+        <h3>📓 Reflection Journal <span style="font-size:.75rem;color:#2a4a2a">(optional — earns XP)</span></h3>
+        <textarea id="journal-input" placeholder="What do you notice about the data? What made you decide?"></textarea>
+      </div>
+
+    </div><!-- /panel-right -->
+
+  </div><!-- /game-body -->
+</div><!-- /screen-game -->
+
+<!-- ══════════════════════════════════════════════════════════════════
+     GLOBAL OVERLAYS
+═══════════════════════════════════════════════════════════════════ -->
+
+<!-- NPC Dialogue -->
+<div id="dialogue-box">
+  <div id="dialogue-portrait">🌽</div>
+  <div id="dialogue-content">
+    <div id="dialogue-name">CornLab</div>
+    <div id="dialogue-text"></div>
+  </div>
+  <span id="dialogue-close">✕</span>
+</div>
+
+<!-- Result overlay -->
+<div id="result-overlay">
+  <div id="result-card"></div>
+</div>
+
+<!-- Tooltip -->
+<div id="tooltip"></div>
+
+<!-- Toast notification -->
+<div id="toast"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     SCRIPTS (order matters)
+═══════════════════════════════════════════════════════════════════ -->
+<script src="js/config.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/api.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/dialogue.js"></script>
+<script src="js/cutscene.js"></script>
+<script src="js/xp.js"></script>
+<script src="js/field.js"></script>
+<script src="js/histogram.js"></script>
+<script src="js/tutorial.js"></script>
+<script src="js/game.js"></script>
+
+<script>
+  // Space bar skips cutscene
+  document.addEventListener("keydown", e => {
+    if (e.code === "Space" && document.getElementById("screen-cutscene").classList.contains("active")) {
+      document.getElementById("cutscene-skip").click();
+    }
+    // M key toggles audio
+    if (e.code === "KeyM") Audio.toggle();
+  });
+</script>
+
+</body>
+</html>

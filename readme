@@ -1,0 +1,251 @@
+# 🌽 CornLab: The Hypothesis Trial
+
+> A production-level serious game for learning hypothesis testing through an agricultural simulation, integrating Gardner's Multiple Intelligences theory.
+
+![Status](https://img.shields.io/badge/status-active-brightgreen) ![Python](https://img.shields.io/badge/python-3.11-blue) ![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-green)
+
+---
+
+## 📖 Overview
+
+CornLab places the player as an agricultural data scientist investigating whether this year's corn yield has changed from last year. Through a 12×12 interactive field, players sample plots, visualize distributions, run hypothesis tests, and make decisions — all without needing any prior statistics knowledge.
+
+Designed for **experimental research** with full A/B testing support:
+- **Group A** — Full interactive game
+- **Group B** — Static slide-based lesson (same content, no interaction)
+
+---
+
+## 🎮 Features
+
+### Game
+- 5 chapters with cinematic cutscenes and narrative progression
+- 12×12 corn field with heatmap reveal
+- One-sample t-test engine (pure Python, no scipy)
+- Histogram with 95% CI shading and mean alignment
+- NPC dialogue system (Farmer John, Dr. Smith, Policy Maker) with typing animation
+- XP system, 5 levels, 8 unlockable badges
+- Redo chapter mechanic
+- Reflection journal
+
+### Education
+- Covers: H₀/H₁, p-value, confidence intervals, Type I & II errors, sampling
+- Beginner-friendly — no formulas shown initially
+- Tooltip system, hint system, step-by-step tutorial (Chapter 1)
+- Gardner's Multiple Intelligences: Logical, Spatial, Bodily, Linguistic, Interpersonal, Intrapersonal, Musical, Naturalistic
+
+### Research
+- A/B testing mode (game vs. static lesson)
+- Full behavioral data collection (clicks, time, hints, journal, decisions)
+- CSV export endpoint
+- Post-test assessment
+- Fixed random seed for reproducibility
+
+### Audio
+- Procedurally generated BGM via Web Audio API — zero external files
+- Sound effects: sampling, correct/wrong decision, reveal, hints, XP, dialogue blips
+- Per-user on/off toggle with localStorage persistence
+
+---
+
+## 🏗️ Architecture
+
+```
+cornlab-public/
+├── frontend/                  ← Cloudflare Pages (static)
+│   ├── index.html
+│   ├── css/
+│   │   └── style.css
+│   ├── js/
+│   │   ├── config.js          ← ⚙️ Set your backend API URL here
+│   │   ├── api.js
+│   │   ├── audio.js
+│   │   ├── cutscene.js
+│   │   ├── dialogue.js
+│   │   ├── field.js
+│   │   ├── game.js
+│   │   ├── histogram.js
+│   │   ├── scene.js
+│   │   ├── tutorial.js
+│   │   └── xp.js
+│   ├── _redirects             ← Cloudflare SPA routing
+│   └── _headers               ← Security headers
+├── backend/                   ← Railway / Render (Python)
+│   ├── database.py            SQLite (dev) / PostgreSQL (prod)
+│   ├── game_engine.py         Field generation, t-test, p-value
+│   ├── xp_system.py           XP, levels, badges
+│   └── routers/
+│       └── api.py             All REST endpoints
+├── main.py                    FastAPI entry point
+├── requirements.txt
+├── railway.toml               Railway deployment config
+├── DEPLOY.md                  Full deployment guide
+└── .gitignore
+```
+
+---
+
+## 🚀 Quick Start (Local)
+
+### Prerequisites
+- Python 3.11+
+- A modern browser (Chrome / Firefox / Edge)
+
+### 1. Install dependencies
+
+```bash
+cd cornlab-public
+pip install -r requirements.txt
+```
+
+### 2. Start the backend
+
+```bash
+uvicorn main:app --reload --port 8000
+```
+
+### 3. Open the game
+
+```
+http://127.0.0.1:8000/app
+```
+
+The SQLite database (`cornlab.db`) is created automatically on first run.
+Interactive API docs are available at `http://127.0.0.1:8000/docs`.
+
+---
+
+## ☁️ Production Deployment
+
+### Frontend → Cloudflare Pages
+
+1. Go to [pages.cloudflare.com](https://pages.cloudflare.com) → Create a project
+2. Connect this GitHub repository
+3. Set build settings:
+   - **Build command:** *(leave empty)*
+   - **Build output directory:** `frontend`
+4. Deploy — Cloudflare gives you `https://cornlab.pages.dev`
+
+### Backend → Railway
+
+1. Go to [railway.app](https://railway.app) → New Project → Deploy from GitHub
+2. Connect this repository — Railway auto-detects `railway.toml`
+3. Add a **PostgreSQL** addon (sets `DATABASE_URL` automatically)
+4. Set environment variables:
+
+| Variable | Value |
+|----------|-------|
+| `DATABASE_URL` | Auto-set by Railway PostgreSQL addon |
+| `ALLOWED_ORIGIN` | `https://your-site.pages.dev` |
+
+### Configure the API URL
+
+Edit `frontend/js/config.js` — the only file you need to change:
+
+```js
+const CONFIG = {
+  API_BASE: "https://your-backend.up.railway.app/api",
+};
+```
+
+Push to GitHub — both platforms redeploy automatically.
+
+See [`DEPLOY.md`](./DEPLOY.md) for the complete step-by-step guide.
+
+---
+
+## 🔌 API Reference
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/users/create` | Create or retrieve a user |
+| GET | `/api/users/{id}` | Get user profile, XP, badges |
+| POST | `/api/sessions/start` | Start a new game session |
+| POST | `/api/sessions/{id}/end` | End a session |
+| POST | `/api/game/sample` | Draw random sample + run t-test |
+| POST | `/api/game/decide` | Submit H₀ decision, receive result |
+| POST | `/api/game/reveal` | Reveal true field heatmap |
+| POST | `/api/actions/log` | Log a player action event |
+| POST | `/api/test/submit` | Submit post-test answers |
+| GET | `/api/analytics/summary` | Aggregate accuracy + error rates |
+| GET | `/api/analytics/export/csv` | Download all results as CSV |
+
+---
+
+## 📊 Database Schema
+
+| Table | Key Fields |
+|-------|-----------|
+| `users` | username, group (A/B), xp, level, badges |
+| `sessions` | user_id, chapter, started_at, ended_at, seed |
+| `actions` | session_id, action_type, payload, timestamp |
+| `results` | chapter, h0_accepted, correct, type1_error, type2_error, sample_mean, time_spent_sec, hint_count, retry_count, journal_text |
+| `pretests` | user_id, test_type (pre/post), answers, score |
+
+Export all results to CSV:
+```
+GET /api/analytics/export/csv
+```
+
+---
+
+## 🎓 Chapter Overview
+
+| # | Title | True Mean | H₀ Mean | Key Concept |
+|---|-------|-----------|---------|-------------|
+| 1 | The Suspicious Harvest | 50.0 bu | 50.0 bu | Guided tutorial, cannot fail |
+| 2 | The Claim | 52.0 bu | 50.0 bu | Basic hypothesis test |
+| 3 | Conflicting Data | 48.5 bu | 50.0 bu | Noisy data, borderline p-value |
+| 4 | The Storm | 53.0 bu | 50.0 bu | High variance, wide CI |
+| 5 | The Policy Decision | 49.0 bu | 50.0 bu | High-stakes, subtle effect |
+
+---
+
+## 🧪 Research Design
+
+### Metrics Collected
+- Decision accuracy per chapter
+- Type I error rate (false alarm — rejected true H₀)
+- Type II error rate (missed effect — accepted false H₀)
+- Time spent per chapter
+- Hint usage count
+- Retry count per chapter
+- Journal text length
+- Post-test score
+
+### Reproducibility
+All field data is generated from a fixed random seed (default: `42`). Change the seed per session for variation across participants.
+
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | HTML5, CSS3, Vanilla JavaScript (ES2020) |
+| Charts | Chart.js 4 |
+| Audio | Web Audio API (fully synthesized) |
+| Backend | Python 3.11, FastAPI |
+| ORM | SQLAlchemy 2 |
+| Database | SQLite (dev), PostgreSQL (prod) |
+| Frontend hosting | Cloudflare Pages |
+| Backend hosting | Railway |
+
+---
+
+## 📄 License
+
+CAU — free to use for research and education.
+
+---
+
+## 🙏 Citation
+
+If you use CornLab in academic research, please cite:
+
+```
+CornLab: The Hypothesis Trial (2026).
+A serious game for teaching hypothesis testing
+using Gardner's Multiple Intelligences framework.
+https://cornlab.pages.dev/
+```
